@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { apiFetch } from "@/lib/client/api";
 
 export default function CheckoutButton({
   plan,
@@ -19,22 +20,20 @@ export default function CheckoutButton({
     setError(null);
 
     try {
-      const res = await fetch("/api/billing/checkout", {
+      const body = await apiFetch<{ url?: string }>("/api/billing/checkout", {
         method: "POST",
-        headers: { "content-type": "application/json" },
         body: JSON.stringify({ plan }),
       });
-      const body = (await res.json()) as { url?: string; error?: string };
 
-      if (!res.ok || !body.url) {
-        setError(body.error ?? "Could not start checkout.");
+      if (!body.url) {
+        setError("Could not start checkout.");
         setBusy(false);
         return;
       }
 
       window.location.href = body.url;
-    } catch {
-      setError("Network error. Please try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start checkout.");
       setBusy(false);
     }
   }

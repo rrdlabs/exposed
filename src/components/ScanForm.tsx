@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { apiFetch } from "@/lib/client/api";
 
 const STAGES = [
   "Reading Certificate Transparency logs",
@@ -30,23 +31,20 @@ export default function ScanForm({ compact = false }: { compact?: boolean }) {
     }, 2500);
 
     try {
-      const res = await fetch("/api/scan", {
+      const body = await apiFetch<{ token?: string }>("/api/scan", {
         method: "POST",
-        headers: { "content-type": "application/json" },
         body: JSON.stringify({ domain }),
       });
 
-      const body = (await res.json()) as { token?: string; error?: string };
-
-      if (!res.ok || !body.token) {
-        setError(body.error ?? "The scan could not be completed. Please try again.");
+      if (!body.token) {
+        setError("The scan could not be completed. Please try again.");
         setBusy(false);
         return;
       }
 
       router.push(`/report/${body.token}`);
-    } catch {
-      setError("Network error. Please try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       setBusy(false);
     } finally {
       clearInterval(ticker);

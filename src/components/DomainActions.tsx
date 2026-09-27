@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { apiFetch } from "@/lib/client/api";
 
 export default function DomainActions({
   targetId,
@@ -25,17 +26,11 @@ export default function DomainActions({
     setBusy(kind);
     setError(null);
     try {
-      const res = await fetch(path, { method });
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        setError(body.error ?? "Something went wrong.");
-        setBusy(null);
-        return false;
-      }
+      await apiFetch(path, { method });
       router.refresh();
       return true;
-    } catch {
-      setError("Network error.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
       setBusy(null);
       return false;
     }

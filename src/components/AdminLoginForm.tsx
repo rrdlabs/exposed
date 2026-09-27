@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { apiFetch } from "@/lib/client/api";
 
 export default function AdminLoginForm() {
   const router = useRouter();
@@ -17,20 +18,14 @@ export default function AdminLoginForm() {
     setError(null);
 
     try {
-      const res = await fetch("/api/admin/session", {
+      await apiFetch("/api/admin/session", {
         method: "POST",
-        headers: { "content-type": "application/json" },
         body: JSON.stringify({ token }),
       });
-      if (!res.ok) {
-        setError("Wrong token.");
-        setBusy(false);
-        return;
-      }
       router.push("/admin/charities");
       router.refresh();
-    } catch {
-      setError("Network error.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign in failed.");
       setBusy(false);
     }
   }

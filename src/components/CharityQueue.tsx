@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { apiFetch } from "@/lib/client/api";
 
 type Row = {
   id: string;
@@ -29,18 +30,13 @@ export default function CharityQueue({
     setBusy(userId);
     setError(null);
     try {
-      const res = await fetch("/api/admin/charity", {
+      await apiFetch("/api/admin/charity", {
         method: "POST",
-        headers: { "content-type": "application/json" },
         body: JSON.stringify({ userId, approve }),
       });
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        setError(body.error ?? "Could not update that claim.");
-      }
       router.refresh();
-    } catch {
-      setError("Network error.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update that claim.");
     } finally {
       setBusy(null);
     }

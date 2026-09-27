@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { apiFetch } from "@/lib/client/api";
 
 export default function CharityClaimForm() {
   const router = useRouter();
@@ -18,20 +19,13 @@ export default function CharityClaimForm() {
     setError(null);
 
     try {
-      const res = await fetch("/api/charity/claim", {
+      await apiFetch("/api/charity/claim", {
         method: "POST",
-        headers: { "content-type": "application/json" },
         body: JSON.stringify({ charityName, charityNumber }),
       });
-      const body = (await res.json()) as { error?: string };
-      if (!res.ok) {
-        setError(body.error ?? "Could not submit the claim.");
-        setBusy(false);
-        return;
-      }
       router.refresh();
-    } catch {
-      setError("Network error. Please try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not submit the claim.");
       setBusy(false);
     }
   }

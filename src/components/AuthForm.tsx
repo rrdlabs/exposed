@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { apiFetch } from "@/lib/client/api";
 
 export default function AuthForm({
   mode,
@@ -33,31 +34,25 @@ export default function AuthForm({
     setError(null);
 
     try {
-      const res = await fetch(`/api/auth/${mode}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          email,
-          password,
-          domain,
-          charity: isCharity,
-          charityName,
-          charityNumber,
-        }),
-      });
-
-      const body = (await res.json()) as { error?: string; redirect?: string };
-
-      if (!res.ok) {
-        setError(body.error ?? "Something went wrong. Please try again.");
-        setBusy(false);
-        return;
-      }
+      const body = await apiFetch<{ error?: string; redirect?: string }>(
+        `/api/auth/${mode}`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            email,
+            password,
+            domain,
+            charity: isCharity,
+            charityName,
+            charityNumber,
+          }),
+        },
+      );
 
       router.push(redirectTo ?? body.redirect ?? "/dashboard");
       router.refresh();
-    } catch {
-      setError("Network error. Please try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       setBusy(false);
     }
   }

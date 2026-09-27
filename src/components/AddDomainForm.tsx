@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { apiFetch } from "@/lib/client/api";
 
 export default function AddDomainForm() {
   const router = useRouter();
@@ -17,24 +18,16 @@ export default function AddDomainForm() {
     setError(null);
 
     try {
-      const res = await fetch("/api/domains", {
+      const body = await apiFetch<{ id: string }>("/api/domains", {
         method: "POST",
-        headers: { "content-type": "application/json" },
         body: JSON.stringify({ domain }),
       });
-      const body = (await res.json()) as { error?: string; id?: string };
-
-      if (!res.ok) {
-        setError(body.error ?? "Could not add that domain.");
-        setBusy(false);
-        return;
-      }
 
       setDomain("");
       router.push(`/dashboard/${body.id}`);
       router.refresh();
-    } catch {
-      setError("Network error. Please try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add that domain.");
       setBusy(false);
     }
   }
