@@ -268,6 +268,26 @@ export function evaluate(snapshot: Snapshot): Finding[] {
     );
   }
 
+  return dedupe(out);
+}
+
+/**
+ * A single scan probes every host over both http:// and https://, so the same
+ * host reaches the same conclusion twice — a site missing CSP on https also
+ * "misses" it on the http:// request that redirects there. Those two share a
+ * ruleId and a subject, so they already share a fingerprint: they are one
+ * issue, not two. Keep the first occurrence of each fingerprint.
+ */
+function dedupe(findings: Finding[]): Finding[] {
+  const seen = new Set<string>();
+  const out: Finding[] = [];
+
+  for (const f of findings) {
+    if (seen.has(f.fingerprint)) continue;
+    seen.add(f.fingerprint);
+    out.push(f);
+  }
+
   return out;
 }
 
