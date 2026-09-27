@@ -22,6 +22,12 @@ export const users = sqliteTable(
     lsSubscriptionStatus: text("ls_subscription_status"),
     lsCustomerPortalUrl: text("ls_customer_portal_url"),
     lsVariantId: text("ls_variant_id"),
+    stripeCustomerId: text("stripe_customer_id"),
+    stripeSubscriptionId: text("stripe_subscription_id"),
+    stripeSubscriptionStatus: text("stripe_subscription_status"),
+    stripeCurrentPeriodEnd: integer("stripe_current_period_end", {
+      mode: "timestamp_ms",
+    }),
     charityClaimed: integer("charity_claimed", { mode: "boolean" })
       .notNull()
       .default(false),

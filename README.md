@@ -37,7 +37,7 @@ Live at **https://rrdlabs.online/exposed/**
 | Framework | Next.js 16 (App Router, Turbopack) | mounted at `/exposed` on the existing nginx vhost |
 | Database | SQLite via `@libsql/client` + Drizzle ORM | `better-sqlite3` falls back to a source build on this 1 vCPU box and hangs |
 | Scans | separate PM2 worker process | a web restart can never interrupt a scan mid-flight |
-| Billing | Lemon Squeezy | merchant of record, so sales tax and VAT are handled |
+| Billing | Stripe Embedded Checkout | form mounts in-page, so no redirect off the site to enter a card |
 | Email | Resend | alerts only; no analytics anywhere in the product |
 
 ## Local setup
@@ -80,16 +80,55 @@ OOM-killed during the TypeScript step.
 
 ## Environment
 
-See `.env.example`. The three that are genuinely required:
+See `.env.example`. The two that are genuinely required:
 
 - `SESSION_SECRET` — signs session cookies. Rotating it logs everyone out.
-- `LEMON_SQUEEZY_WEBHOOK_SECRET` — verifies webhook signatures.
 - `ADMIN_TOKEN` — grants access to `/admin`.
 
-Billing degrades honestly rather than failing: until the Lemon Squeezy vars
-are set, the pricing page still renders and checkout returns a 503 explaining
-it is not configured yet. Likewise, without `RESEND_API_KEY` scans still run and
-findings still record; only the emails are skipped.
+### Stripe
+
+Billing is inert until these are set; nothing fails closed and no card form is
+ever shown to a customer who cannot pay.
+
+| Variable | Scope | Notes |
+| --- | --- | --- |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | inlined into the client bundle at build time | changing it needs a rebuild, not just a restart |
+| `STRIPE_SECRET_KEY` | server only | never sent to the browser |
+| `STRIPE_SOLO_PRICE_ID` | server only | recurring monthly price, not a one-off |
+| `STRIPE_PRO_PRICE_ID` | server only | recurring monthly price, not a one-off |
+| `STRIPE_WEBHOOK_SECRET` | server only | from the endpoint's signing secret, not the API key's |
+
+Dashboard endpoint: `https://rrdlabs.online/exposed/api/webhooks/stripe`
+(the path includes the base path, and nginx will not route it otherwise).
+
+Subscribe it to `checkout.session.completed`,
+`customer.subscription.updated`, `customer.subscription.deleted`,
+`invoice.paid`, and `invoice.payment_failed`. The exported `HANDLED_EVENTS`
+array in the webhook route is the same list; anything else is acknowledged and
+ignored rather than retried.
+
+Three details that are easy to get wrong and expensive to debug:
+
+- **The webhook is the only thing that grants a plan.** The browser is
+  redirected to `/dashboard/billing?session_id=...` and that page verifies the
+  session server-side, but it deliberately cannot change entitlement: a
+  customer can hand-edit any query string, and the client secret is public by
+  design. Display and entitlement are separate on purpose.
+- **Stripe redelivers.** A failed event is retried for up to three days, and a
+  2xx suppresses the retry permanently. The handler claims `event.id` before
+  doing any work and returns 500 on failure, so a transient database error
+  delays a grant instead of losing it. Never acknowledge a failed handler.
+- **The nginx CSP must allow Stripe.** `js.stripe.com` in `script-src`,
+  `checkout.stripe.com` in `frame-src`, `api.stripe.com` and
+  `m.stripe.network` in `connect-src`. A missing origin produces a silently
+  blank modal, not an error message. See
+  `/etc/nginx/snippets/rrdlabs-security-headers.conf`.
+
+Self-serve cancellation runs through the Stripe Customer Portal, which needs
+the cancel and payment-method features enabled in the Dashboard. Lemon Squeezy
+was merchant of record, so VAT and sales tax were its problem; under Stripe
+that liability is now the studio's, and `automatic_tax` stays off until Stripe
+Tax is configured.
 
 ## Operations
 
@@ -115,6 +154,10 @@ findings still record; only the emails are skipped.
   TLS target for something internal.
 - Anonymous scans store a salted HMAC of the caller's IP for rate limiting. It
   cannot be reversed, and it is deleted with the scan.
+- The webhook reads the raw request body as text. Stripe signs exact bytes, and
+  re-serialising parsed JSON changes them and invalidates the signature.
+- Every webhook handler writes through a claim on `webhook_events`, so a
+  redelivery cannot grant a plan twice or send a second receipt.
 
 ## Limitations worth stating plainly
 

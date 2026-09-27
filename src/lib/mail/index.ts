@@ -95,3 +95,37 @@ export async function sendChangeAlert(input: {
     return { sent: false, error: err instanceof Error ? err.message : "unknown error" };
   }
 }
+
+/**
+ * Transactional mail that is not a scan alert: billing confirmations, failed
+ * payments, cancellations.
+ *
+ * Returns a result rather than throwing. These are called from the Stripe
+ * webhook, and a mail provider outage must not stop a subscription from being
+ * recorded correctly — the customer can always be emailed afterwards, whereas a
+ * half-applied plan change cannot be undone.
+ */
+export async function sendEmail(input: {
+  to: string;
+  subject: string;
+  body: string;
+}): Promise<{ sent: boolean; error?: string }> {
+  const resend = getClient();
+  if (!resend) return { sent: false, error: "RESEND_API_KEY is not set" };
+
+  try {
+    const { error } = await resend.emails.send({
+      from: env.mailFrom,
+      to: input.to,
+      subject: input.subject,
+      text: input.body,
+      html: `<pre style="font-family:ui-monospace,monospace;white-space:pre-wrap">${escapeHtml(
+        input.body,
+      )}</pre>`,
+    });
+    if (error) return { sent: false, error: error.message };
+    return { sent: true };
+  } catch (err) {
+    return { sent: false, error: err instanceof Error ? err.message : "unknown error" };
+  }
+}

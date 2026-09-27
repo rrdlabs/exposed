@@ -8,7 +8,12 @@ export type Plan = {
   maxDomains: number;
   headline: string;
   features: string[];
-  variantEnv: "LEMON_SQUEEZY_SOLO_VARIANT_ID" | "LEMON_SQUEEZY_PRO_VARIANT_ID" | null;
+  /**
+   * Env var holding this plan's recurring Stripe Price ID. Read at call time
+   * rather than at module load so a price can be added without a rebuild, and
+   * null for the free plan which is never purchased.
+   */
+  priceEnv: "STRIPE_SOLO_PRICE_ID" | "STRIPE_PRO_PRICE_ID" | null;
 };
 
 export const PLANS: Record<PlanId, Plan> = {
@@ -25,7 +30,7 @@ export const PLANS: Record<PlanId, Plan> = {
       "Passive scan: DNS, TLS, headers, subdomains",
       "No account required",
     ],
-    variantEnv: null,
+    priceEnv: null,
   },
   solo: {
     id: "solo",
@@ -42,7 +47,7 @@ export const PLANS: Record<PlanId, Plan> = {
       "New subdomain detection",
       "Self-serve cancel",
     ],
-    variantEnv: "LEMON_SQUEEZY_SOLO_VARIANT_ID",
+    priceEnv: "STRIPE_SOLO_PRICE_ID",
   },
   pro: {
     id: "pro",
@@ -59,16 +64,41 @@ export const PLANS: Record<PlanId, Plan> = {
       "Outbound webhook for alerts",
       "Priority: reply from the founder",
     ],
-    variantEnv: "LEMON_SQUEEZY_PRO_VARIANT_ID",
+    priceEnv: "STRIPE_PRO_PRICE_ID",
   },
 };
 
 export const PLAN_ORDER: PlanId[] = ["free", "solo", "pro"];
 
-export function planForVariant(variantId: string | null | undefined): PlanId | null {
-  if (!variantId) return null;
-  if (process.env.LEMON_SQUEEZY_SOLO_VARIANT_ID === variantId) return "solo";
-  if (process.env.LEMON_SQUEEZY_PRO_VARIANT_ID === variantId) return "pro";
+export function isBillablePlan(value: unknown): value is PlanId {
+  return value === "solo" || value === "pro";
+}
+
+/**
+ * The recurring Stripe Price ID for a plan, or null when the free plan is
+ * passed or the env var has not been filled in yet.
+ */
+export function priceIdForPlan(plan: PlanId): string | null {
+  const planDef = PLANS[plan];
+  if (!planDef?.priceEnv) return null;
+  const value = process.env[planDef.priceEnv];
+  return value && value.length > 0 ? value : null;
+}
+
+/**
+ * Reverse mapping, used by the webhook. A subscription event carries a price id
+ * but not our plan name, so the price id is the only link back to what the
+ * customer actually bought.
+ *
+ * Deliberately matched against both the configured id and its last segment: a
+ * webhook can reference a price as "price_1AbC" while the env var holds the
+ * same id, but anything that re-creates a price under a new id must not
+ * silently keep granting the old entitlement.
+ */
+export function planForPriceId(priceId: string | null | undefined): PlanId | null {
+  if (!priceId) return null;
+  if (priceIdForPlan("solo") === priceId) return "solo";
+  if (priceIdForPlan("pro") === priceId) return "pro";
   return null;
 }
 

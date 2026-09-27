@@ -26,18 +26,29 @@ export const env = {
   get mailFrom() {
     return optional("MAIL_FROM") ?? "Exposed <alerts@rrdlabs.online>";
   },
-  get lemonSqueezyStoreId() {
-    return optional("LEMON_SQUEEZY_STORE_ID");
+  /**
+   * Stripe. Deliberately optional rather than required: a missing key has to
+   * degrade to a clear "billing is not configured" message on the checkout
+   * route, not crash the app at import time, which is what a required() getter
+   * would do for anyone booting a dev environment to work on anything other
+   * than billing.
+   */
+  get stripeSecretKey() {
+    return optional("STRIPE_SECRET_KEY");
   },
-  get lemonSqueezyWebhookSecret() {
-    return required("LEMON_SQUEEZY_WEBHOOK_SECRET");
+  get stripePublishableKey() {
+    return optional("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY");
   },
-  get soloVariantId() {
-    return optional("LEMON_SQUEEZY_SOLO_VARIANT_ID");
+  get stripeWebhookSecret() {
+    return optional("STRIPE_WEBHOOK_SECRET");
   },
-  get proVariantId() {
-    return optional("LEMON_SQUEEZY_PRO_VARIANT_ID");
+  get stripeSoloPriceId() {
+    return optional("STRIPE_SOLO_PRICE_ID");
   },
+  get stripeProPriceId() {
+    return optional("STRIPE_PRO_PRICE_ID");
+  },
+
   get adminToken() {
     return required("ADMIN_TOKEN");
   },
